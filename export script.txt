@@ -1,0 +1,91 @@
+Sub ExportLayersAsTIFF()
+    Dim doc As Document
+    Dim filePath As String
+    Dim fileName As String
+    Dim backgroundLayer As layer
+    Dim layer As layer
+    Dim activePage As Page
+    Dim layerFound As Boolean
+    Dim i As Integer
+
+    ' Prompt for export path
+    filePath = BrowseForFolder("Select the folder to save TIFF files:")
+    If filePath = "" Then Exit Sub
+
+    Set doc = ActiveDocument
+    Set activePage = doc.activePage
+    layerFound = False
+
+    ' Check if the "Background" layer exists
+    For i = 1 To activePage.Layers.Count
+        Set layer = activePage.Layers(i)
+        If layer.Name = "Background" Then
+            Set backgroundLayer = layer
+            layerFound = True
+            Exit For
+        End If
+    Next i
+
+    If Not layerFound Then
+        MsgBox "The layer 'Background' was not found in the active page.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Hide all layers except for the background layer
+    For i = 1 To activePage.Layers.Count
+        Set layer = activePage.Layers(i)
+        If layer.Name <> backgroundLayer.Name Then
+            layer.Visible = False
+        End If
+    Next i
+
+    ' Loop through each layer on the active page
+    For i = 1 To activePage.Layers.Count
+        Set layer = activePage.Layers(i)
+        If layer.Name <> backgroundLayer.Name And layer.Name <> "Guides" Then ' Skip the background and guide layers
+            ' Make the current layer visible
+            layer.Visible = True
+
+            ' Select all objects on the active layer and the background layer
+            backgroundLayer.Shapes.All.AddToSelection
+            layer.Shapes.All.AddToSelection
+
+            ' Create the file name
+            fileName = filePath & "\" & Replace(doc.Name, ".cdr", "") & "_" & layer.Name & "_" & activePage.Name & ".tif"
+
+            ' Check if the file already exists
+            If Dir(fileName) <> "" Then
+                ' Prompt to change the file name
+                fileName = InputBox("File already exists. Please enter a new name:", "File Name Conflict", fileName)
+                If fileName = "" Then
+                    MsgBox "Export canceled. No file name provided.", vbExclamation
+                    Exit Sub
+                End If
+            End If
+
+            ' Export the current layer as a TIFF file
+            doc.Export fileName, cdrTIFF, cdrSelection
+
+            ' Deselect all objects in the active layer and the background layer
+            backgroundLayer.Shapes.All.RemoveFromSelection
+            layer.Shapes.All.RemoveFromSelection
+
+            ' Hide the current layer before moving to the next one
+            layer.Visible = False
+        End If
+    Next i
+
+    ' Ensure the background layer remains visible
+    backgroundLayer.Visible = True
+End Sub
+
+Function BrowseForFolder(prompt As String) As String
+    Dim shellApp As Object
+    Set shellApp = CreateObject("Shell.Application").BrowseForFolder(0, prompt, 0)
+    If Not shellApp Is Nothing Then
+        BrowseForFolder = shellApp.self.Path
+    Else
+        BrowseForFolder = ""
+    End If
+End Function
+
